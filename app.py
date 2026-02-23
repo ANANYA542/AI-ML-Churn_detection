@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+import altair as alt
 
 # PAGE CONFIG
 st.set_page_config(
@@ -127,11 +128,43 @@ if uploaded_file is not None:
         })
 
         feature_importance_df["Importance"] = feature_importance_df["Importance"].abs()
-        feature_importance_df = feature_importance_df.sort_values(
-            by="Importance", ascending=False
-        ).head(5)
 
-        st.bar_chart(feature_importance_df.set_index("Feature"))
+        # Sort properly 
+        feature_importance_df = (
+            feature_importance_df
+            .sort_values(by="Importance", ascending=False)
+            .head(5)
+        )
+
+        base = alt.Chart(feature_importance_df).encode(
+            x=alt.X(
+                "Feature:N",
+                sort="-y",
+                axis=alt.Axis(labelAngle=0, title="Feature")
+            ),
+            y=alt.Y(
+                "Importance:Q",
+                axis=alt.Axis(title="Importance")
+            )
+        )
+
+        # Bars
+        bars = base.mark_bar()
+
+        # Value labels on top of bars
+        text = base.mark_text(
+            align="center",
+            dy=-5,
+            color="white"
+        ).encode(
+            text=alt.Text("Importance:Q", format=".2f")
+        )
+
+        chart = (bars + text).properties(
+            height=400
+        )
+
+        st.altair_chart(chart, use_container_width=True)
 
     # DOWNLOAD OPTION
     csv = df.to_csv(index=False).encode("utf-8")
