@@ -8,13 +8,13 @@ from src.ui_components import (
     render_churn_distribution, 
     render_feature_importance, 
     render_tenure_analysis,
-    render_business_insights
+    render_business_insights,
+    render_model_baseline
 )
 
 # PAGE CONFIG
 st.set_page_config(
     page_title="ChurnGuard AI | Enterprise Retention Dashboard",
-    page_icon="📊",
     layout="wide"
 )
 
@@ -34,8 +34,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # SIDEBAR / HEADER
-st.title("📊 ChurnGuard AI")
-st.subheader("Enterprise Customer Retention & Churn Analytics")
+st.title("ChurnGuard AI")
+st.subheader("Enterprise Customer Retention and Churn Analytics")
 
 # LOAD MODELS
 model = load_model()
@@ -75,10 +75,10 @@ if uploaded_file is not None:
 
     # TABS
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Executive Dashboard", 
-        "🔍 Risk Analysis", 
-        "⚙️ Model Performance", 
-        "📄 Raw Data Explorer"
+        "Executive Dashboard", 
+        "Risk Analysis", 
+        "Model Performance", 
+        "Raw Data Explorer"
     ])
 
     with tab1:
@@ -108,28 +108,7 @@ if uploaded_file is not None:
 
     with tab3:
         st.header("Model Evaluation Metrics")
-        st.info("Validation metrics based on the current uploaded dataset.")
-        
-        # If 'Churn' column exists in upload, we can show performance
-        target_col = "Churn" if "Churn" in df_results.columns else None
-        if target_col:
-            from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
-            
-            y_true = df_results[target_col].map({"Yes": 1, "No": 0, 1: 1, 0: 0})
-            y_pred = df_results["Churn_Prediction"]
-            
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Model Accuracy", f"{accuracy_score(y_true, y_pred):.2%}")
-            
-            st.subheader("Confusion Matrix")
-            cm = confusion_matrix(y_true, y_pred)
-            cm_df = pd.DataFrame(cm, index=["Actual No", "Actual Yes"], columns=["Predicted No", "Predicted Yes"])
-            st.table(cm_df)
-            
-            st.subheader("Detailed Classification Report")
-            st.text(classification_report(y_true, y_pred))
-        else:
-            st.warning("Upload data with a 'Churn' column to see model performance metrics.")
+        render_model_baseline()
 
     with tab4:
         st.header("Dataset Explorer")
@@ -151,10 +130,10 @@ else:
         st.markdown("""
         ### Welcome to ChurnGuard AI
         Upload your customer dataset to unlock:
-        - **Real-time Churn Prediction** using advanced ML.
-        - **Risk Segmentation** to identify vulnerable customers.
-        - **Actionable Insights** to boost your retention rates.
-        - **Feature Analysis** to understand what drives customer behavior.
+        - Real-time Churn Prediction using advanced ML.
+        - Risk Segmentation to identify vulnerable customers.
+        - Actionable Insights to boost your retention rates.
+        - Feature Analysis to understand what drives customer behavior.
         """)
     with col2:
         st.image("feature_importance.png", caption="Sample Feature Importance Analysis")

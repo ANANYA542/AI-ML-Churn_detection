@@ -89,15 +89,15 @@ def render_business_insights(df, model, feature_names):
     with col1:
         st.subheader("Key Findings")
         if hasattr(model, "coef_"):
-            top_feature = _feature_names[np.argmax(model.coef_[0])]
-            st.write(f"1. **Primary Churn Driver:** `{top_feature}` has the strongest positive correlation with churn.")
+            top_feature = feature_names[np.argmax(model.coef_[0])]
+            st.write(f"1. Primary Churn Driver: `{top_feature}` has the strongest positive correlation with churn.")
             
             # Month-to-month check
-            if "Contract_Month-to-month" in _feature_names:
-                st.write("2. **Contract Vulnerability:** Month-to-month contracts significantly increase churn risk.")
+            if "Contract_Month-to-month" in feature_names:
+                st.write("2. Contract Vulnerability: Month-to-month contracts significantly increase churn risk.")
         
         high_risk_pct = (df["Risk_Level"] == "High Risk").mean() * 100
-        st.write(f"3. **Urgency:** {high_risk_pct:.1f}% of uploaded customers are in the 'High Risk' category.")
+        st.write(f"3. Urgency: {high_risk_pct:.1f}% of uploaded customers are in the 'High Risk' category.")
 
     with col2:
         st.subheader("Actionable Recommendations")
@@ -105,68 +105,49 @@ def render_business_insights(df, model, feature_names):
         st.success("Contract Upselling: Transition month-to-month customers to annual contracts via bundle incentives.")
         st.warning("Fiber Optic Check: Customers with Fiber Optic service show higher churn; investigate service quality or pricing.")
 
-def render_performance_metrics(y_true, y_pred, y_probs):
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_curve, auc
-    
-    # metrics
-    acc = accuracy_score(y_true, y_pred)
-    prec = precision_score(y_true, y_pred)
-    rec = recall_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred)
+def render_model_baseline():
+    st.subheader("Model Baseline Performance (Test Set)")
+    st.info("These metrics represent the model's performance on the 20% held-out test set during training.")
     
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Accuracy", f"{acc:.2%}")
-    m2.metric("Precision", f"{prec:.2%}")
-    m3.metric("Recall", f"{rec:.2%}")
-    m4.metric("F1 Score", f"{f1:.2%}")
+    m1.metric("Baseline Accuracy", "81.97%")
+    m2.metric("Baseline Precision", "68.31%")
+    m3.metric("Baseline Recall", "59.52%")
+    m4.metric("Baseline F1 Score", "63.61%")
     
     st.markdown("---")
     
     col1, col2 = st.columns(2)
-    
     with col1:
-        st.subheader("Confusion Matrix")
-        cm = confusion_matrix(y_true, y_pred)
-        cm_df = pd.DataFrame(
-            cm, 
-            index=["Actual: No", "Actual: Yes"], 
-            columns=["Predicted: No", "Predicted: Yes"]
-        ).stack().reset_index()
-        cm_df.columns = ["Actual", "Predicted", "Count"]
+        st.subheader("Baseline Confusion Matrix")
+        # [[933, 103], [151, 222]]
+        cm_data = pd.DataFrame({
+            "Actual": ["Actual: No", "Actual: No", "Actual: Yes", "Actual: Yes"],
+            "Predicted": ["Predicted: No", "Predicted: Yes", "Predicted: No", "Predicted: Yes"],
+            "Count": [933, 103, 151, 222]
+        })
         
-        cm_chart = alt.Chart(cm_df).mark_rect().encode(
+        cm_chart = alt.Chart(cm_data).mark_rect().encode(
             x="Predicted:O",
             y="Actual:O",
-            color=alt.Color("Count:Q", scale=alt.Scale(scheme="blues")),
+            color=alt.Color("Count:Q", scale=alt.Scale(scheme="purples")),
             tooltip=["Actual", "Predicted", "Count"]
         ).properties(height=350)
         
         text = cm_chart.mark_text(baseline='middle').encode(
             text='Count:Q',
             color=alt.condition(
-                alt.datum.Count > cm.max() / 2,
+                alt.datum.Count > 500,
                 alt.value('white'),
                 alt.value('black')
             )
         )
         st.altair_chart(cm_chart + text, use_container_width=True)
-
+    
     with col2:
-        st.subheader("ROC Curve")
-        fpr, tpr, _ = roc_curve(y_true, y_probs)
-        roc_auc = auc(fpr, tpr)
-        
-        roc_df = pd.DataFrame({"FPR": fpr, "TPR": tpr})
-        
-        roc_chart = alt.Chart(roc_df).mark_line(color="#d33682").encode(
-            x=alt.X("FPR", title="False Positive Rate"),
-            y=alt.Y("TPR", title="True Positive Rate"),
-            tooltip=["FPR", "TPR"]
-        ).properties(title=f"AUC: {roc_auc:.3f}", height=350)
-        
-        # Diagonal line
-        diag = alt.Chart(pd.DataFrame({"x": [0, 1], "y": [0, 1]})).mark_line(strokeDash=[5, 5], color="gray").encode(
-            x="x", y="y"
-        )
-        
-        st.altair_chart(diag + roc_chart, use_container_width=True)
+        st.subheader("Performance Commentary")
+        st.write("""
+        - **Precision (68.3%)**: When the model predicts churn, it is correct nearly 7 out of 10 times.
+        - **Recall (59.5%)**: The model identifies roughly 60% of all actual churners. This is a critical metric for retention efforts.
+        - **Balance**: The F1 score of 0.636 indicates a healthy balance between precision and recall for this imbalanced dataset.
+        """)
