@@ -105,35 +105,39 @@ def render_business_insights(df, model, feature_names):
         st.success("Contract Upselling: Transition month-to-month customers to annual contracts via bundle incentives.")
         st.warning("Fiber Optic Check: Customers with Fiber Optic service show higher churn; investigate service quality or pricing.")
 
-def render_model_baseline():
+def render_model_baseline(metrics):
     st.subheader("Model Baseline Performance (Test Set)")
     st.info("These metrics represent the model's performance on the 20% held-out test set during training.")
-    
+
+    if metrics is None:
+        st.error("Metrics file not found. Please retrain the model.")
+        return
+
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Baseline Accuracy", "81.97%")
-    m2.metric("Baseline Precision", "68.31%")
-    m3.metric("Baseline Recall", "59.52%")
-    m4.metric("Baseline F1 Score", "63.61%")
-    
+    m1.metric("Baseline Accuracy", f"{metrics['accuracy']}%")
+    m2.metric("Baseline Precision", f"{metrics['precision']}%")
+    m3.metric("Baseline Recall", f"{metrics['recall']}%")
+    m4.metric("Baseline F1 Score", f"{metrics['f1']}%")
+
     st.markdown("---")
-    
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Baseline Confusion Matrix")
-        # [[933, 103], [151, 222]]
+        cm = metrics["confusion_matrix"]
         cm_data = pd.DataFrame({
             "Actual": ["Actual: No", "Actual: No", "Actual: Yes", "Actual: Yes"],
             "Predicted": ["Predicted: No", "Predicted: Yes", "Predicted: No", "Predicted: Yes"],
-            "Count": [933, 103, 151, 222]
+            "Count": [cm[0][0], cm[0][1], cm[1][0], cm[1][1]]
         })
-        
+
         cm_chart = alt.Chart(cm_data).mark_rect().encode(
             x="Predicted:O",
             y="Actual:O",
             color=alt.Color("Count:Q", scale=alt.Scale(scheme="purples")),
             tooltip=["Actual", "Predicted", "Count"]
         ).properties(height=350)
-        
+
         text = cm_chart.mark_text(baseline='middle').encode(
             text='Count:Q',
             color=alt.condition(
@@ -143,11 +147,11 @@ def render_model_baseline():
             )
         )
         st.altair_chart(cm_chart + text, use_container_width=True)
-    
+
     with col2:
         st.subheader("Performance Commentary")
-        st.write("""
-        - **Precision (68.3%)**: When the model predicts churn, it is correct nearly 7 out of 10 times.
-        - **Recall (59.5%)**: The model identifies roughly 60% of all actual churners. This is a critical metric for retention efforts.
-        - **Balance**: The F1 score of 0.636 indicates a healthy balance between precision and recall for this imbalanced dataset.
+        st.write(f"""
+        - **Precision ({metrics['precision']}%)**: When the model predicts churn, it is correct nearly {round(metrics['precision'] / 10)} out of 10 times.
+        - **Recall ({metrics['recall']}%)**: The model identifies roughly {round(metrics['recall'])}% of all actual churners. This is a critical metric for retention efforts.
+        - **Balance**: The F1 score of {metrics['f1']}% indicates a healthy balance between precision and recall for this imbalanced dataset.
         """)

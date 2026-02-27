@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from src.model_loader import load_model, load_scaler, load_feature_names
+from src.model_loader import load_model, load_scaler, load_feature_names, load_metrics
 from src.processor import preprocess_data, get_risk_label
 from src.ui_components import (
     render_kpi_cards, 
@@ -41,6 +41,7 @@ st.subheader("Enterprise Customer Retention and Churn Analytics")
 model = load_model()
 scaler = load_scaler()
 feature_names = load_feature_names()
+metrics = load_metrics()
 
 # FILE UPLOAD
 with st.sidebar:
@@ -108,7 +109,7 @@ if uploaded_file is not None:
 
     with tab3:
         st.header("Model Evaluation Metrics")
-        render_model_baseline()
+        render_model_baseline(metrics)
 
     with tab4:
         st.header("Dataset Explorer")

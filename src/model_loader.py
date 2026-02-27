@@ -1,5 +1,6 @@
 import streamlit as st
 import pickle
+import json
 import os
 
 @st.cache_resource
@@ -19,6 +20,15 @@ def load_scaler():
         return None
     with open(path, "rb") as f:
         return pickle.load(f)
+
+@st.cache_resource
+def load_metrics():
+    path = "models/metrics.json"
+    if not os.path.exists(path):
+        st.error(f"Metrics file not found at {path}")
+        return None
+    with open(path, "r") as f:
+        return json.load(f)
 
 @st.cache_resource
 def load_feature_names():
