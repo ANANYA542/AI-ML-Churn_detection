@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from src.model_loader import load_model, load_scaler, load_feature_names, load_metrics
-from src.processor import preprocess_data, get_risk_label
+from src.processor import preprocess_data, get_risk_label, validate_input
 from src.ui_components import (
     render_kpi_cards, 
     render_churn_distribution, 
@@ -56,23 +56,34 @@ with st.sidebar:
 if uploaded_file is not None:
     # DATA PROCESSING
     df_raw = pd.read_csv(uploaded_file)
-    
-    with st.spinner("Processing data & generating predictions..."):
-        # Preprocess
-        df_processed = preprocess_data(df_raw, feature_names)
-        
-        # Scale
-        df_scaled = scaler.transform(df_processed)
-        
-        # Predict
-        predictions = model.predict(df_scaled)
-        probabilities = model.predict_proba(df_scaled)[:, 1]
-        
-        # Enriched Main Dataframe
-        df_results = df_raw.copy()
-        df_results["Churn_Prediction"] = predictions
-        df_results["Churn_Probability"] = probabilities
-        df_results["Risk_Level"] = df_results["Churn_Probability"].apply(get_risk_label)
+
+    # VALIDATE INPUT
+    validation_errors = validate_input(df_raw)
+    if validation_errors:
+        for error in validation_errors:
+            st.error(error)
+        st.stop()
+
+    try:
+        with st.spinner("Processing data & generating predictions..."):
+            # Preprocess
+            df_processed = preprocess_data(df_raw, feature_names)
+
+            # Scale
+            df_scaled = scaler.transform(df_processed)
+
+            # Predict
+            predictions = model.predict(df_scaled)
+            probabilities = model.predict_proba(df_scaled)[:, 1]
+
+            # Enriched Main Dataframe
+            df_results = df_raw.copy()
+            df_results["Churn_Prediction"] = predictions
+            df_results["Churn_Probability"] = probabilities
+            df_results["Risk_Level"] = df_results["Churn_Probability"].apply(get_risk_label)
+    except Exception as e:
+        st.error(f"Error processing data: {str(e)}")
+        st.stop()
 
     # TABS
     tab1, tab2, tab3, tab4 = st.tabs([

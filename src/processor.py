@@ -2,6 +2,33 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
+REQUIRED_COLUMNS = [
+    "gender", "SeniorCitizen", "Partner", "Dependents", "tenure",
+    "PhoneService", "MultipleLines", "InternetService", "OnlineSecurity",
+    "OnlineBackup", "DeviceProtection", "TechSupport", "StreamingTV",
+    "StreamingMovies", "Contract", "PaperlessBilling", "PaymentMethod",
+    "MonthlyCharges", "TotalCharges"
+]
+
+def validate_input(df):
+    errors = []
+
+    if df.empty:
+        errors.append("Uploaded file has no data (0 rows).")
+        return errors
+
+    missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+    if missing_cols:
+        errors.append(f"Missing required columns: {', '.join(missing_cols)}")
+
+    if "tenure" in df.columns and not pd.api.types.is_numeric_dtype(df["tenure"]):
+        errors.append("Column 'tenure' must be numeric.")
+
+    if "MonthlyCharges" in df.columns and not pd.api.types.is_numeric_dtype(df["MonthlyCharges"]):
+        errors.append("Column 'MonthlyCharges' must be numeric.")
+
+    return errors
+
 @st.cache_data
 def preprocess_data(df, _feature_names):
     """
