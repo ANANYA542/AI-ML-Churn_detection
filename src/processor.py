@@ -10,6 +10,8 @@ REQUIRED_COLUMNS = [
     "MonthlyCharges", "TotalCharges"
 ]
 
+NUMERIC_COLUMNS = ["tenure", "MonthlyCharges", "TotalCharges", "SeniorCitizen"]
+
 def validate_input(df):
     errors = []
 
@@ -29,31 +31,74 @@ def validate_input(df):
 
     return errors
 
+
+def _detect_outliers_iqr(series):
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    if s.empty:
+        return 0
+    q1, q3 = s.quantile(0.25), s.quantile(0.75)
+    iqr = q3 - q1
+    lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    return int(((s < lower) | (s > upper)).sum())
+
+
+def analyze_data_quality(df):
+    """Return per-column missing counts, outlier counts, and a 0-100 quality score."""
+    total_rows = len(df)
+    working = df.copy()
+
+    if "TotalCharges" in working.columns:
+        working["TotalCharges"] = pd.to_numeric(working["TotalCharges"], errors="coerce")
+
+    missing = {col: int(working[col].isna().sum()) for col in working.columns if working[col].isna().any()}
+
+    outliers = {}
+    for col in NUMERIC_COLUMNS:
+        if col in working.columns:
+            count = _detect_outliers_iqr(working[col])
+            if count > 0:
+                outliers[col] = count
+
+    total_cells = total_rows * max(len(working.columns), 1)
+    missing_ratio = sum(missing.values()) / total_cells if total_cells else 0
+    outlier_ratio = sum(outliers.values()) / (total_rows * max(len(NUMERIC_COLUMNS), 1)) if total_rows else 0
+    score = max(0, round(100 * (1 - missing_ratio - 0.5 * outlier_ratio), 1))
+
+    return {
+        "total_rows": total_rows,
+        "missing": missing,
+        "outliers": outliers,
+        "quality_score": score,
+    }
+
+
 @st.cache_data
 def preprocess_data(df, _feature_names):
     """
     Cleans and aligns uploaded dataframe with training features.
+    Imputes numeric columns with median and categorical with mode.
     """
     df_processed = df.copy()
 
-    # Remove customerID if exists
     if "customerID" in df_processed.columns:
         df_processed = df_processed.drop("customerID", axis=1)
 
-    # Convert TotalCharges if needed
     if "TotalCharges" in df_processed.columns:
         df_processed["TotalCharges"] = pd.to_numeric(
             df_processed["TotalCharges"], errors="coerce"
         )
-        # Handle NAs which might result from coerce
-        df_processed["TotalCharges"] = df_processed["TotalCharges"].fillna(
-            df_processed["TotalCharges"].median() if not df_processed["TotalCharges"].isna().all() else 0
-        )
 
-    # Encode categorical columns
+    for col in df_processed.columns:
+        if df_processed[col].isna().any():
+            if pd.api.types.is_numeric_dtype(df_processed[col]):
+                fill = df_processed[col].median()
+                df_processed[col] = df_processed[col].fillna(fill if pd.notna(fill) else 0)
+            else:
+                mode = df_processed[col].mode(dropna=True)
+                df_processed[col] = df_processed[col].fillna(mode.iloc[0] if not mode.empty else "Unknown")
+
     df_processed = pd.get_dummies(df_processed)
 
-    # Align columns with training features
     for col in _feature_names:
         if col not in df_processed.columns:
             df_processed[col] = 0
