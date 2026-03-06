@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from src.model_loader import load_model, load_scaler, load_feature_names, load_metrics
-from src.processor import preprocess_data, get_risk_label, validate_input
+from src.processor import preprocess_data, get_risk_label, validate_input, analyze_data_quality
 from src.ui_components import (
     render_kpi_cards, 
     render_churn_distribution, 
@@ -63,6 +63,29 @@ if uploaded_file is not None:
         for error in validation_errors:
             st.error(error)
         st.stop()
+
+    # DATA QUALITY REPORT
+    quality = analyze_data_quality(df_raw)
+    if quality["missing"] or quality["outliers"]:
+        cols_missing = len(quality["missing"])
+        if cols_missing:
+            st.warning(
+                f"{cols_missing} column(s) had missing values — imputed with median/mode. "
+                f"Results may be less reliable."
+            )
+        if quality["outliers"]:
+            out_summary = ", ".join(f"{k} ({v})" for k, v in quality["outliers"].items())
+            st.info(f"Outliers detected (IQR): {out_summary}")
+        with st.expander("Data quality details"):
+            st.metric("Data Quality Score", f"{quality['quality_score']} / 100")
+            if quality["missing"]:
+                st.write("**Missing values per column:**")
+                st.json(quality["missing"])
+            if quality["outliers"]:
+                st.write("**Outliers per column (IQR method):**")
+                st.json(quality["outliers"])
+    else:
+        st.success(f"Data quality score: {quality['quality_score']} / 100")
 
     try:
         with st.spinner("Processing data & generating predictions..."):
