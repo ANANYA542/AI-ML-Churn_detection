@@ -29,10 +29,14 @@ MANIFEST
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
 ENV/
+
+# Streamlit secrets
+.streamlit/secrets.toml
 
 # mypy
 .mypy_cache/
