@@ -83,3 +83,24 @@ def build_strategy_prompt(risk_analysis: str, risk_level: str):
         risk_analysis=risk_analysis,
         risk_level=risk_level,
     )
+
+
+DISCLAIMER_SYSTEM = """You append short, neutral disclaimers to AI-generated retention recommendations."""
+
+DISCLAIMER_USER = """Append a disclaimer block to the following retention recommendations.
+
+RECOMMENDATIONS:
+{recommendations}
+
+Return the original recommendations unchanged, followed by a markdown section:
+
+---
+### Disclaimer
+- These suggestions are model-generated and must be reviewed by a human before being acted on.
+- They are based only on the provided customer fields and may not reflect the full context.
+- Any pricing, contract, or legal action requires approval from the relevant team.
+- Do not use these outputs to make automated decisions that materially affect a customer."""
+
+
+def build_disclaimer_prompt(recommendations: str):
+    return DISCLAIMER_SYSTEM, DISCLAIMER_USER.format(recommendations=recommendations)
