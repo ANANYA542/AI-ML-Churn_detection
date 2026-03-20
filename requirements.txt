@@ -9,3 +9,5 @@ joblib==1.5.3
 imbalanced-learn==0.12.4
 groq==0.11.0
 python-dotenv==1.0.1
+langgraph>=0.2.0
+langchain-core>=0.3.0
