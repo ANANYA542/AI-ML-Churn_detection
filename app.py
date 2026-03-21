@@ -109,7 +109,7 @@ if uploaded_file is not None:
         st.error(f"Error processing data: {str(e)}")
         st.stop()
 
-    # --- TAB PERSISTENCE (session state + JS workaround) ---
+    # TAB PERSISTENCE (session state + JS workaround) 
     if "active_tab_index" not in st.session_state:
         st.session_state.active_tab_index = 0
     if "agent_result" not in st.session_state:
@@ -175,7 +175,7 @@ if uploaded_file is not None:
             st.dataframe(high_risk_df.head(10), use_container_width=True)
             st.caption("Showing top 10 most vulnerable customers.")
 
-        # --- AI RETENTION INSIGHTS ---
+        # AI RETENTION INSIGHTS 
         st.markdown("---")
         st.subheader("🤖 AI Retention Insights")
 
@@ -207,18 +207,17 @@ if uploaded_file is not None:
 
                 if st.button("Generate Retention Strategy", key="run_agent_btn"):
                     with st.spinner("Agent is analyzing customer profile…"):
-                        try:
-                            result = run_agent(customer_data, churn_prob)
-                            st.session_state.agent_result = result
-                            st.session_state.agent_customer_id = selected_id
-                        except Exception as e:
-                            st.session_state.agent_result = None
-                            st.session_state.agent_customer_id = selected_id
-                            st.error(f"Agent error: {str(e)}")
+                        result = run_agent(customer_data, churn_prob)
+                        st.session_state.agent_result = result
+                        st.session_state.agent_customer_id = selected_id
 
                 # Display cached result (persists across reruns)
                 result = st.session_state.agent_result
                 if result and st.session_state.agent_customer_id == selected_id:
+                    # Fallback warning
+                    if result.get("is_fallback"):
+                        st.warning("⚠️ AI advisor unavailable, showing rule-based suggestions")
+
                     # 1. Risk Level
                     risk = result["risk_level"]
                     if risk == "High":

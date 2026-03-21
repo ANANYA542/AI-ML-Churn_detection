@@ -14,6 +14,11 @@ from typing import TypedDict, List, Dict
 from langgraph.graph import StateGraph, END
 
 from src.llm_client import get_llm_response
+from src.fallback import generate_fallback_strategy
+
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +229,10 @@ _compiled_graph = _build_graph()
 def run_agent(customer_data: dict, churn_probability: float) -> dict:
     """Run the churn-retention agent and return structured output.
 
+    If the LLM is unavailable (after retries), the function falls back
+    to a deterministic rule-based strategy so the caller always receives
+    a valid result.
+
     Args:
         customer_data: Dictionary of customer attributes (e.g. tenure,
             MonthlyCharges, Contract, etc.).
@@ -236,6 +245,7 @@ def run_agent(customer_data: dict, churn_probability: float) -> dict:
             - contributing_factors (list[str])
             - retention_strategy (str)
             - sources (list[str])
+            - is_fallback (bool)
     """
 
     initial_state: ChurnAgentState = {
@@ -247,14 +257,19 @@ def run_agent(customer_data: dict, churn_probability: float) -> dict:
         "sources": [],
     }
 
-    final_state = _compiled_graph.invoke(initial_state)
+    try:
+        final_state = _compiled_graph.invoke(initial_state)
 
-    return {
-        "risk_level": final_state["risk_level"],
-        "contributing_factors": final_state["contributing_factors"],
-        "retention_strategy": final_state["retention_strategy"],
-        "sources": final_state["sources"],
-    }
+        return {
+            "risk_level": final_state["risk_level"],
+            "contributing_factors": final_state["contributing_factors"],
+            "retention_strategy": final_state["retention_strategy"],
+            "sources": final_state["sources"],
+            "is_fallback": False,
+        }
+    except Exception as exc:
+        _logger.warning("LLM agent failed, using rule-based fallback: %s", exc)
+        return generate_fallback_strategy(customer_data, churn_probability)
 
 
 # ---------------------------------------------------------------------------
