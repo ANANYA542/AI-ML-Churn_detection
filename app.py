@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from src.model_loader import load_model, load_scaler, load_feature_names, load_metrics
 from src.processor import preprocess_data, get_risk_label, validate_input, analyze_data_quality
+from src.agent import run_agent
 from src.ui_components import (
     render_kpi_cards, 
     render_churn_distribution, 
@@ -108,6 +109,39 @@ if uploaded_file is not None:
         st.error(f"Error processing data: {str(e)}")
         st.stop()
 
+    # --- TAB PERSISTENCE (session state + JS workaround) ---
+    if "active_tab_index" not in st.session_state:
+        st.session_state.active_tab_index = 0
+    if "agent_result" not in st.session_state:
+        st.session_state.agent_result = None
+    if "agent_customer_id" not in st.session_state:
+        st.session_state.agent_customer_id = None
+
+    def _restore_tab():
+        """Inject minimal JS to click the correct tab button after rerun."""
+        idx = st.session_state.active_tab_index
+        if idx > 0:
+            st.components.v1.html(
+                f"""
+                <script>
+                const tryClick = () => {{
+                    const tabs = window.parent.document.querySelectorAll(
+                        '[data-baseweb="tab-list"] button[role="tab"]'
+                    );
+                    if (tabs.length > {idx}) {{
+                        tabs[{idx}].click();
+                    }} else {{
+                        setTimeout(tryClick, 100);
+                    }}
+                }};
+                tryClick();
+                </script>
+                """,
+                height=0,
+            )
+
+    _restore_tab()
+
     # TABS
     tab1, tab2, tab3, tab4 = st.tabs([
         "Executive Dashboard", 
@@ -140,6 +174,75 @@ if uploaded_file is not None:
             high_risk_df = df_results[df_results["Risk_Level"] == "High Risk"].sort_values(by="Churn_Probability", ascending=False)
             st.dataframe(high_risk_df.head(10), use_container_width=True)
             st.caption("Showing top 10 most vulnerable customers.")
+
+        # --- AI RETENTION INSIGHTS ---
+        st.markdown("---")
+        st.subheader("🤖 AI Retention Insights")
+
+        # Build customer dropdown from high-risk customers (fall back to all if none)
+        if "customerID" in df_results.columns:
+            high_risk_ids = df_results[df_results["Risk_Level"] == "High Risk"].sort_values(
+                by="Churn_Probability", ascending=False
+            )["customerID"].tolist()
+            all_ids = df_results["customerID"].tolist()
+            dropdown_ids = high_risk_ids if high_risk_ids else all_ids
+
+            selected_id = st.selectbox(
+                "Select Customer ID",
+                options=dropdown_ids,
+                index=0,
+                help="High-risk customers are shown first. Select one to generate AI retention insights.",
+            )
+
+            if selected_id:
+                # Pin tab to Risk Analysis on any interaction
+                st.session_state.active_tab_index = 1
+
+                row = df_results[df_results["customerID"] == selected_id].iloc[0]
+                churn_prob = float(row["Churn_Probability"])
+                customer_data = row.drop(
+                    labels=["Churn_Prediction", "Churn_Probability", "Risk_Level"],
+                    errors="ignore",
+                ).to_dict()
+
+                if st.button("Generate Retention Strategy", key="run_agent_btn"):
+                    with st.spinner("Agent is analyzing customer profile…"):
+                        try:
+                            result = run_agent(customer_data, churn_prob)
+                            st.session_state.agent_result = result
+                            st.session_state.agent_customer_id = selected_id
+                        except Exception as e:
+                            st.session_state.agent_result = None
+                            st.session_state.agent_customer_id = selected_id
+                            st.error(f"Agent error: {str(e)}")
+
+                # Display cached result (persists across reruns)
+                result = st.session_state.agent_result
+                if result and st.session_state.agent_customer_id == selected_id:
+                    # 1. Risk Level
+                    risk = result["risk_level"]
+                    if risk == "High":
+                        st.error(f"Risk Level: **{risk}**")
+                    elif risk == "Medium":
+                        st.warning(f"Risk Level: **{risk}**")
+                    else:
+                        st.success(f"Risk Level: **{risk}**")
+
+                    # 2. Contributing Factors
+                    st.markdown("#### Contributing Factors")
+                    for factor in result["contributing_factors"]:
+                        st.markdown(f"- {factor}")
+
+                    # 3. Retention Strategy
+                    st.markdown("#### Recommended Retention Strategy")
+                    st.markdown(result["retention_strategy"])
+
+                    # 4. Supporting Insights / Disclaimer
+                    with st.expander("Supporting Insights & Disclaimer"):
+                        for source in result["sources"]:
+                            st.markdown(f"- {source}")
+        else:
+            st.info("No `customerID` column found — cannot select individual customers.")
 
     with tab3:
         st.header("Model Evaluation Metrics")
