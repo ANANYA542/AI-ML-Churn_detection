@@ -122,17 +122,33 @@ def generate_strategy(state: ChurnAgentState) -> dict:
     customer_json = json.dumps(state["customer_data"], indent=2, default=str)
     factors_text = "\n".join(f"- {f}" for f in state["contributing_factors"])
 
+    # RAG Retrieval
+    try:
+        from src.rag import retrieve
+        query_text = (
+            f"Risk Level: {state['risk_level']}\n"
+            f"Factors: {factors_text}\n"
+            f"Profile: {customer_json}"
+        )
+        contexts = retrieve(query_text)
+        context_str = "\n---\n".join(contexts) if contexts else "No relevant knowledge base strategies found."
+    except Exception as e:
+        _logger.warning(f"RAG retrieval failed: {e}")
+        context_str = "RAG unavailable."
+
     prompt = (
         f"CUSTOMER PROFILE:\n{customer_json}\n\n"
         f"RISK LEVEL: {state['risk_level']}\n\n"
         f"CONTRIBUTING FACTORS:\n{factors_text}\n\n"
+        f"CONTEXT:\n{context_str}\n\n"
         "Based on the information above, propose a concrete retention strategy "
         "consisting of 2-4 actionable steps the business can take to retain this customer.\n\n"
         "Rules:\n"
         "- Each step must directly address one of the contributing factors.\n"
         "- Prefer low-cost, measurable, and ethical actions.\n"
         "- Be specific (e.g., 'offer a 12-month contract at a 10 % discount') rather than vague.\n"
-        "- If the risk level is Low, focus on monitoring and lightweight engagement.\n\n"
+        "- If the risk level is Low, focus on monitoring and lightweight engagement.\n"
+        "- Incorporate insights from the CONTEXT if relevant and applicable.\n\n"
         "Return the strategy as a numbered list in plain text."
     )
 
