@@ -33,6 +33,7 @@ class ChurnAgentState(TypedDict, total=False):
     contributing_factors: List[str]
     retention_strategy: str
     sources: List[str]
+    structured_report: dict
 
 
 # ---------------------------------------------------------------------------
@@ -164,17 +165,40 @@ def generate_strategy(state: ChurnAgentState) -> dict:
         "- Be specific (e.g., 'offer a 12-month contract at a 10 % discount') rather than vague.\n"
         "- If the risk level is Low, focus on monitoring and lightweight engagement.\n"
         "- Incorporate insights from the CONTEXT if relevant and applicable.\n\n"
-        "Return the strategy as a numbered list in plain text."
+        "Return ONLY valid JSON matching this exact structure:\n"
+        "{\n"
+        '  "risk_summary": "...",\n'
+        '  "risk_level": "...",\n'
+        '  "churn_probability": ' + str(state['churn_probability']) + ',\n'
+        '  "contributing_factors": [...],\n'
+        '  "recommended_actions": [\n'
+        '    {"action": "...", "rationale": "...", "priority": "High/Medium/Low"}\n'
+        '  ],\n'
+        '  "sources": [...],\n'
+        '  "disclaimers": [...]\n'
+        "}\n\n"
+        "Do NOT return any text outside of the JSON."
     )
 
     system = (
         "You are a customer retention strategist for a telecom company. "
-        "Be concise, practical, and ground every recommendation in the data provided."
+        "Be concise, practical, and ground every recommendation in the data provided. "
+        "You must output only valid, parseable JSON."
     )
 
-    strategy = get_llm_response(prompt, system_prompt=system)
+    raw_response = get_llm_response(prompt, system_prompt=system)
 
-    return {"retention_strategy": strategy}
+    from src.models import RetentionReport
+    try:
+        report = RetentionReport.model_validate_json(raw_response)
+        return {"structured_report": report.model_dump()}
+    except Exception as e:
+        _logger.warning(f"Failed to parse main response, retrying: {e}")
+        # Retry once
+        retry_prompt = f"Previous JSON parsing failed. Return valid JSON only:\n\n{prompt}"
+        raw_retry = get_llm_response(retry_prompt, system_prompt=system)
+        report = RetentionReport.model_validate_json(raw_retry)
+        return {"structured_report": report.model_dump()}
 
 
 def add_disclaimers(state: ChurnAgentState) -> dict:
@@ -235,7 +259,6 @@ def _build_graph() -> StateGraph:
     graph.add_node("analyze_risk", analyze_risk)
     graph.add_node("identify_factors", identify_factors)
     graph.add_node("generate_strategy", generate_strategy)
-    graph.add_node("add_disclaimers", add_disclaimers)
 
     # Set entry point
     graph.set_entry_point("analyze_risk")
@@ -243,8 +266,7 @@ def _build_graph() -> StateGraph:
     # Connect nodes in sequence
     graph.add_edge("analyze_risk", "identify_factors")
     graph.add_edge("identify_factors", "generate_strategy")
-    graph.add_edge("generate_strategy", "add_disclaimers")
-    graph.add_edge("add_disclaimers", END)
+    graph.add_edge("generate_strategy", END)
 
     return graph.compile()
 
@@ -296,13 +318,12 @@ def run_agent(
     try:
         final_state = _compiled_graph.invoke(initial_state)
 
-        return {
-            "risk_level": final_state["risk_level"],
-            "contributing_factors": final_state["contributing_factors"],
-            "retention_strategy": final_state["retention_strategy"],
-            "sources": final_state["sources"],
-            "is_fallback": False,
-        }
+        if "structured_report" in final_state:
+            report_dict = final_state["structured_report"]
+            report_dict["is_fallback"] = False
+            return report_dict
+        else:
+            raise ValueError("No structured report found")
     except Exception as exc:
         _logger.warning("LLM agent failed, using rule-based fallback: %s", exc)
         return generate_fallback_strategy(customer_data, churn_probability)
@@ -338,12 +359,15 @@ if __name__ == "__main__":
     result = run_agent(sample_customer, churn_probability=0.82)
 
     print("=" * 60)
-    print(f"Risk Level        : {result['risk_level']}")
+    print(f"Risk Level        : {result.get('risk_level')}")
+    print(f"Summary           : {result.get('risk_summary')}")
     print(f"Contributing Factors:")
-    for f in result["contributing_factors"]:
+    for f in result.get("contributing_factors", []):
         print(f"  • {f}")
-    print(f"\nRetention Strategy:\n{result['retention_strategy']}")
+    print(f"\nRetention Strategy:")
+    for a in result.get("recommended_actions", []):
+        print(f"  • [{a.get('priority', 'N/A')}] {a.get('action')}: {a.get('rationale')}")
     print(f"\nSources / Reasoning:")
-    for s in result["sources"]:
+    for s in result.get("sources", []):
         print(f"  • {s}")
     print("=" * 60)

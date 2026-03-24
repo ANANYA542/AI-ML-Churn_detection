@@ -156,14 +156,13 @@ def _build_strategy(factors: List[str], risk_level: str, customer_data: dict) ->
         steps.append("Schedule a proactive outreach call to understand the customer's needs.")
         steps.append("Consider offering a loyalty reward or personalised discount.")
 
-    # Format as numbered list
-    return "\n".join(f"{i}. {step}" for i, step in enumerate(steps[:4], 1))
+    return steps[:4]
 
 
 def generate_fallback_strategy(customer_data: dict, churn_probability: float) -> dict:
     """Generate a complete retention strategy using rule-based logic.
 
-    Returns the same structure as ``run_agent`` so it can be used as a
+    Returns the same structure as structured report so it can be used as a
     drop-in replacement.
 
     Args:
@@ -171,25 +170,35 @@ def generate_fallback_strategy(customer_data: dict, churn_probability: float) ->
         churn_probability: ML model's predicted churn probability (0-1).
 
     Returns:
-        dict with keys: risk_level, contributing_factors,
-        retention_strategy, sources, is_fallback.
+        dict with keys matching the RetentionReport schema, plus is_fallback.
     """
     risk_level = _classify_risk(churn_probability)
     factors = _identify_factors(customer_data)
-    strategy = _build_strategy(factors, risk_level, customer_data)
+    strategy_steps = _build_strategy(factors, risk_level, customer_data)
 
     sources = [
         "Risk classification based on standard probability thresholds (Low ≤ 0.3, Medium ≤ 0.7, High > 0.7).",
         "Contributing factors derived from well-known telecom churn indicators.",
-        "Retention strategies based on industry best practices for customer retention.",
+        "Retention strategies based on industry best practices for customer retention."
+    ]
+    
+    disclaimers = [
         "Disclaimer: These are rule-based suggestions generated without AI. "
-        "They should be reviewed by a domain expert before implementation.",
+        "They should be reviewed by a domain expert before implementation."
+    ]
+
+    actions = [
+        {"action": step, "rationale": "Derived from rule-based fallback logic.", "priority": "Medium"}
+        for step in strategy_steps
     ]
 
     return {
+        "risk_summary": f"Customer represents a {risk_level.lower()} churn risk based on rule heuristics.",
         "risk_level": risk_level,
+        "churn_probability": churn_probability,
         "contributing_factors": factors,
-        "retention_strategy": strategy,
+        "recommended_actions": actions,
         "sources": sources,
+        "disclaimers": disclaimers,
         "is_fallback": True,
     }

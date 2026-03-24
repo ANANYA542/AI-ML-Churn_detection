@@ -231,20 +231,24 @@ if uploaded_file is not None:
                     if result.get("is_fallback"):
                         st.warning("⚠️ AI advisor unavailable, showing rule-based suggestions")
 
-                    # 1. Risk Level
-                    risk = result["risk_level"]
+                    # 1. Risk Summary & Level
+                    risk = result.get("risk_level", "Unknown")
                     if risk == "High":
                         st.error(f"Risk Level: **{risk}**")
                     elif risk == "Medium":
                         st.warning(f"Risk Level: **{risk}**")
                     else:
                         st.success(f"Risk Level: **{risk}**")
+                    
+                    if result.get("risk_summary"):
+                        st.info(result.get("risk_summary"))
 
                     # 2. Contributing Factors
                     st.markdown("#### Contributing Factors")
-                    for factor in result["contributing_factors"]:
+                    for factor in result.get("contributing_factors", []):
                         st.markdown(f"- {factor}")
 
+<<<<<<< HEAD
                     # SHAP per-customer explanation
                     shap_top = st.session_state.get("shap_top") or []
                     shap_row = st.session_state.get("shap_row")
@@ -266,13 +270,25 @@ if uploaded_file is not None:
                             st.caption(f"SHAP plot unavailable: {plot_err}")
 
                     # 3. Retention Strategy
+=======
+                    # 3. Recommended Actions
+>>>>>>> f7b9691 (feat: add structured retention report schema with Pydantic and JSON-based LLM output validation)
                     st.markdown("#### Recommended Retention Strategy")
-                    st.markdown(result["retention_strategy"])
+                    for idx, act in enumerate(result.get("recommended_actions", []), 1):
+                        priority = act.get("priority", "")
+                        color = "red" if priority == "High" else "orange" if priority == "Medium" else "green"
+                        st.markdown(f"**{idx}. {act.get('action')}** (Priority: :{color}[{priority}])")
+                        st.caption(f"*Rationale:* {act.get('rationale')}")
 
                     # 4. Supporting Insights / Disclaimer
                     with st.expander("Supporting Insights & Disclaimer"):
-                        for source in result["sources"]:
+                        for source in result.get("sources", []):
                             st.markdown(f"- {source}")
+                        
+                        if result.get("disclaimers"):
+                            st.markdown("---")
+                            for disc in result.get("disclaimers", []):
+                                st.caption(disc)
         else:
             st.info("No `customerID` column found — cannot select individual customers.")
 
