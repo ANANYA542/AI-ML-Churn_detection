@@ -248,7 +248,6 @@ if uploaded_file is not None:
                     for factor in result.get("contributing_factors", []):
                         st.markdown(f"- {factor}")
 
-<<<<<<< HEAD
                     # SHAP per-customer explanation
                     shap_top = st.session_state.get("shap_top") or []
                     shap_row = st.session_state.get("shap_row")
@@ -269,10 +268,7 @@ if uploaded_file is not None:
                         except Exception as plot_err:
                             st.caption(f"SHAP plot unavailable: {plot_err}")
 
-                    # 3. Retention Strategy
-=======
                     # 3. Recommended Actions
->>>>>>> f7b9691 (feat: add structured retention report schema with Pydantic and JSON-based LLM output validation)
                     st.markdown("#### Recommended Retention Strategy")
                     for idx, act in enumerate(result.get("recommended_actions", []), 1):
                         priority = act.get("priority", "")
