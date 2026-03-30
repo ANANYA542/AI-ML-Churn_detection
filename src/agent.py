@@ -9,7 +9,7 @@ Nodes (executed in order):
 """
 
 import json
-from typing import TypedDict, List, Dict
+from typing import TypedDict, List, Dict, Optional
 
 from langgraph.graph import StateGraph, END
 
@@ -25,9 +25,10 @@ _logger = logging.getLogger(__name__)
 # State schema
 # ---------------------------------------------------------------------------
 
-class ChurnAgentState(TypedDict):
+class ChurnAgentState(TypedDict, total=False):
     customer_data: Dict
     churn_probability: float
+    shap_explanation: List[Dict]
     risk_level: str
     contributing_factors: List[str]
     retention_strategy: str
@@ -78,13 +79,27 @@ def identify_factors(state: ChurnAgentState) -> dict:
 
     customer_json = json.dumps(state["customer_data"], indent=2, default=str)
 
+    shap_block = ""
+    shap_explanation = state.get("shap_explanation") or []
+    if shap_explanation:
+        from src.explainability import format_shap_for_prompt
+        shap_block = (
+            "\nSHAP PER-CUSTOMER ATTRIBUTION (top features driving this "
+            "customer's prediction):\n"
+            f"{format_shap_for_prompt(shap_explanation)}\n"
+            "Prefer factors that appear in the SHAP list, since they are "
+            "computed from this specific customer's prediction.\n"
+        )
+
     prompt = (
         f"CUSTOMER PROFILE:\n{customer_json}\n\n"
-        f"RISK LEVEL: {state['risk_level']}\n\n"
-        "Based on the customer profile above, identify the top 3-5 factors "
+        f"RISK LEVEL: {state['risk_level']}\n"
+        f"{shap_block}\n"
+        "Based on the information above, identify the top 3-5 factors "
         "that most likely contribute to this customer's churn risk.\n\n"
         "Rules:\n"
         "- Each factor must reference a specific field and value from the profile.\n"
+        "- If SHAP attributions are provided, cite the SHAP feature name and sign.\n"
         "- Explain in one sentence why that field/value raises or lowers churn risk.\n"
         "- Do not invent data that is not in the profile.\n\n"
         "Return ONLY a JSON array of strings. Example:\n"
@@ -242,7 +257,11 @@ _compiled_graph = _build_graph()
 # Public API
 # ---------------------------------------------------------------------------
 
-def run_agent(customer_data: dict, churn_probability: float) -> dict:
+def run_agent(
+    customer_data: dict,
+    churn_probability: float,
+    shap_explanation: Optional[List[Dict]] = None,
+) -> dict:
     """Run the churn-retention agent and return structured output.
 
     If the LLM is unavailable (after retries), the function falls back
@@ -267,6 +286,7 @@ def run_agent(customer_data: dict, churn_probability: float) -> dict:
     initial_state: ChurnAgentState = {
         "customer_data": customer_data,
         "churn_probability": churn_probability,
+        "shap_explanation": shap_explanation or [],
         "risk_level": "",
         "contributing_factors": [],
         "retention_strategy": "",

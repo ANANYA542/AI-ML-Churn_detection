@@ -4,6 +4,7 @@ import numpy as np
 from src.model_loader import load_model, load_scaler, load_feature_names, load_metrics
 from src.processor import preprocess_data, get_risk_label, validate_input, analyze_data_quality
 from src.agent import run_agent
+from src.explainability import explain_prediction, generate_shap_plot
 from src.ui_components import (
     render_kpi_cards, 
     render_churn_distribution, 
@@ -207,9 +208,21 @@ if uploaded_file is not None:
 
                 if st.button("Generate Retention Strategy", key="run_agent_btn"):
                     with st.spinner("Agent is analyzing customer profile…"):
-                        result = run_agent(customer_data, churn_prob)
+                        row_idx = df_results.index[df_results["customerID"] == selected_id][0]
+                        customer_scaled = df_scaled[list(df_results.index).index(row_idx)]
+                        try:
+                            shap_top = explain_prediction(
+                                model, customer_scaled, feature_names,
+                                background=df_scaled[:100], top_k=5,
+                            )
+                        except Exception as shap_err:
+                            shap_top = []
+                            st.info(f"SHAP explanation unavailable: {shap_err}")
+                        result = run_agent(customer_data, churn_prob, shap_explanation=shap_top)
                         st.session_state.agent_result = result
                         st.session_state.agent_customer_id = selected_id
+                        st.session_state.shap_top = shap_top
+                        st.session_state.shap_row = customer_scaled
 
                 # Display cached result (persists across reruns)
                 result = st.session_state.agent_result
@@ -231,6 +244,26 @@ if uploaded_file is not None:
                     st.markdown("#### Contributing Factors")
                     for factor in result["contributing_factors"]:
                         st.markdown(f"- {factor}")
+
+                    # SHAP per-customer explanation
+                    shap_top = st.session_state.get("shap_top") or []
+                    shap_row = st.session_state.get("shap_row")
+                    if shap_top:
+                        st.markdown("#### Per-customer Feature Attribution (SHAP)")
+                        for f in shap_top:
+                            arrow = "↑" if f["shap_value"] > 0 else "↓"
+                            st.markdown(
+                                f"- **{f['feature']}** {arrow} "
+                                f"(shap={f['shap_value']:+.3f}, value={f['value']:.3g}) — {f['direction']}"
+                            )
+                        try:
+                            fig = generate_shap_plot(
+                                model, shap_row, feature_names,
+                                background=df_scaled[:100], top_k=10,
+                            )
+                            st.pyplot(fig)
+                        except Exception as plot_err:
+                            st.caption(f"SHAP plot unavailable: {plot_err}")
 
                     # 3. Retention Strategy
                     st.markdown("#### Recommended Retention Strategy")
