@@ -11,7 +11,8 @@ from src.ui_components import (
     render_feature_importance, 
     render_tenure_analysis,
     render_business_insights,
-    render_model_baseline
+    render_model_baseline,
+    render_ai_advisor_insights
 )
 
 # PAGE CONFIG
@@ -144,9 +145,10 @@ if uploaded_file is not None:
     _restore_tab()
 
     # TABS
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Executive Dashboard", 
         "Risk Analysis", 
+        "AI Retention Advisor", 
         "Model Performance", 
         "Raw Data Explorer"
     ])
@@ -176,29 +178,46 @@ if uploaded_file is not None:
             st.dataframe(high_risk_df.head(10), use_container_width=True)
             st.caption("Showing top 10 most vulnerable customers.")
 
-        # AI RETENTION INSIGHTS 
-        st.markdown("---")
-        st.subheader("🤖 AI Retention Insights")
+    with tab3:
+        st.header("🤖 AI Retention Advisor")
+        st.markdown("Select an at-risk customer from the table below to generate a personalized retention strategy.")
 
-        # Build customer dropdown from high-risk customers (fall back to all if none)
         if "customerID" in df_results.columns:
-            high_risk_ids = df_results[df_results["Risk_Level"] == "High Risk"].sort_values(
+            # Filter for at-risk customers
+            at_risk_df = df_results[df_results["Risk_Level"].isin(["High Risk", "Medium Risk"])].sort_values(
                 by="Churn_Probability", ascending=False
-            )["customerID"].tolist()
-            all_ids = df_results["customerID"].tolist()
-            dropdown_ids = high_risk_ids if high_risk_ids else all_ids
-
-            selected_id = st.selectbox(
-                "Select Customer ID",
-                options=dropdown_ids,
-                index=0,
-                help="High-risk customers are shown first. Select one to generate AI retention insights.",
             )
+            
+            st.subheader("At-Risk Customers")
+            # Show a searchable/filterable table of at-risk customers
+            event = st.dataframe(
+                at_risk_df,
+                use_container_width=True,
+                selection_mode="single-row",
+                on_select="rerun",
+                hide_index=True,
+            )
+            
+            selected_id = None
+            if len(event.selection.rows) > 0:
+                selected_row_idx = event.selection.rows[0]
+                selected_id = at_risk_df.iloc[selected_row_idx]["customerID"]
+
+            # Fallback for manual search/select
+            if not selected_id:
+                st.markdown("Or search via dropdown:")
+                selected_id = st.selectbox(
+                    "Search Customer ID",
+                    options=[""] + at_risk_df["customerID"].tolist(),
+                    index=0,
+                    label_visibility="collapsed"
+                )
 
             if selected_id:
-                # Pin tab to Risk Analysis on any interaction
-                st.session_state.active_tab_index = 1
-
+                st.session_state.active_tab_index = 2  # Pin to AI Retention Advisor tab
+                st.markdown("---")
+                st.subheader(f"Strategy for Customer: `{selected_id}`")
+                
                 row = df_results[df_results["customerID"] == selected_id].iloc[0]
                 churn_prob = float(row["Churn_Probability"])
                 customer_data = row.drop(
@@ -218,6 +237,7 @@ if uploaded_file is not None:
                         except Exception as shap_err:
                             shap_top = []
                             st.info(f"SHAP explanation unavailable: {shap_err}")
+                        
                         result = run_agent(customer_data, churn_prob, shap_explanation=shap_top)
                         st.session_state.agent_result = result
                         st.session_state.agent_customer_id = selected_id
@@ -227,72 +247,17 @@ if uploaded_file is not None:
                 # Display cached result (persists across reruns)
                 result = st.session_state.agent_result
                 if result and st.session_state.agent_customer_id == selected_id:
-                    # Fallback warning
-                    if result.get("is_fallback"):
-                        st.warning("⚠️ AI advisor unavailable, showing rule-based suggestions")
-
-                    # 1. Risk Summary & Level
-                    risk = result.get("risk_level", "Unknown")
-                    if risk == "High":
-                        st.error(f"Risk Level: **{risk}**")
-                    elif risk == "Medium":
-                        st.warning(f"Risk Level: **{risk}**")
-                    else:
-                        st.success(f"Risk Level: **{risk}**")
-                    
-                    if result.get("risk_summary"):
-                        st.info(result.get("risk_summary"))
-
-                    # 2. Contributing Factors
-                    st.markdown("#### Contributing Factors")
-                    for factor in result.get("contributing_factors", []):
-                        st.markdown(f"- {factor}")
-
-                    # SHAP per-customer explanation
                     shap_top = st.session_state.get("shap_top") or []
                     shap_row = st.session_state.get("shap_row")
-                    if shap_top:
-                        st.markdown("#### Per-customer Feature Attribution (SHAP)")
-                        for f in shap_top:
-                            arrow = "↑" if f["shap_value"] > 0 else "↓"
-                            st.markdown(
-                                f"- **{f['feature']}** {arrow} "
-                                f"(shap={f['shap_value']:+.3f}, value={f['value']:.3g}) — {f['direction']}"
-                            )
-                        try:
-                            fig = generate_shap_plot(
-                                model, shap_row, feature_names,
-                                background=df_scaled[:100], top_k=10,
-                            )
-                            st.pyplot(fig)
-                        except Exception as plot_err:
-                            st.caption(f"SHAP plot unavailable: {plot_err}")
-
-                    # 3. Recommended Actions
-                    st.markdown("#### Recommended Retention Strategy")
-                    for idx, act in enumerate(result.get("recommended_actions", []), 1):
-                        priority = act.get("priority", "")
-                        color = "red" if priority == "High" else "orange" if priority == "Medium" else "green"
-                        st.markdown(f"**{idx}. {act.get('action')}** (Priority: :{color}[{priority}])")
-                        st.caption(f"*Rationale:* {act.get('rationale')}")
-
-                    # 4. Supporting Insights / Disclaimer
-                    with st.expander("Supporting Insights & Disclaimer"):
-                        for source in result.get("sources", []):
-                            st.markdown(f"- {source}")
-                        
-                        if result.get("disclaimers"):
-                            st.markdown("---")
-                            for disc in result.get("disclaimers", []):
-                                st.caption(disc)
+                    render_ai_advisor_insights(result, model, shap_top, shap_row, feature_names, df_scaled)
         else:
             st.info("No `customerID` column found — cannot select individual customers.")
 
-    with tab3:
+    with tab4:
         st.header("Model Evaluation Metrics")
         render_model_baseline(metrics)
 
-    with tab4:
+    with tab5:
         st.header("Dataset Explorer")
         st.dataframe(df_results, use_container_width=True)
         

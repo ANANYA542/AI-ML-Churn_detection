@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+from src.explainability import generate_shap_plot
 
 def render_kpi_cards(df):
     col1, col2, col3, col4 = st.columns(4)
@@ -155,3 +156,73 @@ def render_model_baseline(metrics):
         - **Recall ({metrics['recall']}%)**: The model identifies roughly {round(metrics['recall'])}% of all actual churners. This is a critical metric for retention efforts.
         - **Balance**: The F1 score of {metrics['f1']}% indicates a healthy balance between precision and recall for this imbalanced dataset.
         """)
+
+def render_ai_advisor_insights(result, model, shap_top, shap_row, feature_names, df_scaled):
+    # Fallback warning
+    if result.get("is_fallback"):
+        st.warning("⚠️ AI advisor unavailable, showing rule-based suggestions")
+
+    # Structured Output Layout
+    col_res1, col_res2 = st.columns([1, 2])
+    
+    with col_res1:
+        # 1. Risk Summary & Level
+        st.markdown("#### Risk Assessment")
+        risk = result.get("risk_level", "Unknown")
+        if risk == "High":
+            st.error(f"**Risk Level: {risk}**")
+        elif risk == "Medium":
+            st.warning(f"**Risk Level: {risk}**")
+        else:
+            st.success(f"**Risk Level: {risk}**")
+        
+        if result.get("risk_summary"):
+            st.info(result.get("risk_summary"))
+
+        # 2. Contributing Factors
+        st.markdown("#### Contributing Factors")
+        for factor in result.get("contributing_factors", []):
+            st.markdown(f"- {factor}")
+
+    with col_res2:
+        # 3. Recommended Actions
+        st.markdown("#### Recommended Retention Actions")
+        for idx, act in enumerate(result.get("recommended_actions", []), 1):
+            priority = act.get("priority", "")
+            color = "red" if priority == "High" else "orange" if priority == "Medium" else "green"
+            with st.container():
+                st.markdown(f"**{idx}. {act.get('action')}** (Priority: :{color}[{priority}])")
+                st.markdown(f"> *{act.get('rationale')}*")
+
+    st.markdown("---")
+    
+    # SHAP per-customer explanation
+    if shap_top and shap_row is not None:
+        st.markdown("#### Per-customer Feature Attribution (SHAP)")
+        for f in shap_top:
+            arrow = "↑" if f["shap_value"] > 0 else "↓"
+            st.markdown(
+                f"- **{f['feature']}** {arrow} "
+                f"(shap={f['shap_value']:+.3f}, value={f['value']:.3g}) — {f['direction']}"
+            )
+        try:
+            fig = generate_shap_plot(
+                model, shap_row, feature_names,
+                background=df_scaled[:100], top_k=10,
+            )
+            st.pyplot(fig)
+        except Exception as plot_err:
+            st.caption(f"SHAP plot unavailable: {plot_err}")
+
+    # 4. Supporting Insights / Disclaimer
+    with st.expander("Supporting Insights & Disclaimers"):
+        if result.get("sources"):
+            st.markdown("**Sources:**")
+            for source in result.get("sources", []):
+                st.markdown(f"- {source}")
+        
+        if result.get("disclaimers"):
+            st.markdown("**Disclaimers:**")
+            for disc in result.get("disclaimers", []):
+                st.caption(disc)
+
