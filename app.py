@@ -250,6 +250,16 @@ if uploaded_file is not None:
                     shap_top = st.session_state.get("shap_top") or []
                     shap_row = st.session_state.get("shap_row")
                     render_ai_advisor_insights(result, model, shap_top, shap_row, feature_names, df_scaled)
+                    
+                    st.markdown("---")
+                    from src.pdf_export import generate_pdf
+                    pdf_bytes = generate_pdf(result, customer_data)
+                    st.download_button(
+                        label="📄 Download PDF Report",
+                        data=pdf_bytes,
+                        file_name=f"Retention_Report_{selected_id}.pdf",
+                        mime="application/pdf"
+                    )
         else:
             st.info("No `customerID` column found — cannot select individual customers.")
 
