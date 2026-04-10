@@ -1,140 +1,207 @@
-# Customer Churn Prediction System  
-### Milestone 1 – Machine Learning Implementation
+# 🛡️ ChurnGuard AI — Customer Churn Prediction & AI Retention System
+
+> **Live App →** _[Deploy to Streamlit Cloud and paste URL here]_
+
+A full-stack ML + Agentic AI system that predicts customer churn and generates personalised retention strategies using LLMs, SHAP explainability, and a RAG pipeline.
+
+---
+
+## Table of Contents
+
+1. [Project Overview](#project-overview)  
+2. [Milestone 1 — ML Pipeline](#milestone-1--ml-pipeline)  
+3. [Milestone 2 — AI Retention Advisor](#milestone-2--ai-retention-advisor)  
+4. [Dataset](#dataset)  
+5. [Model Performance](#model-performance)  
+6. [System Architecture](#system-architecture)  
+7. [Running Locally](#running-locally)  
+8. [Environment Setup](#environment-setup)  
+9. [Deployment](#deployment)  
+10. [Team](#team)  
 
 ---
 
 ## Project Overview
 
-Customer churn is a major business challenge in the telecommunications industry. Losing customers directly affects revenue, and acquiring new customers is significantly more expensive than retaining existing ones.
+Customer churn is one of the most expensive problems in the telecom industry. Acquiring a new customer costs 5–7× more than retaining one. **ChurnGuard AI** addresses this with two tightly integrated layers:
 
-This project develops a supervised machine learning system to predict customer churn using historical telecom customer data. The system identifies high-risk customers, provides churn probability scores, and highlights key factors influencing churn behavior.
-
----
-
-##  Objective
-
-The main objectives of this project are:
-
-- Build a supervised machine learning model to predict churn
-- Estimate churn probability for each customer
-- Identify key drivers influencing churn behavior
-- Provide a simple web interface for prediction and analysis
+| Layer | What it does |
+|---|---|
+| **ML Model** | Logistic Regression trained on Telco data — predicts churn probability per customer |
+| **AI Advisor** | LangGraph agentic workflow — generates a bespoke, structured retention strategy via LLM + RAG |
 
 ---
 
-##  Dataset Information
+## Milestone 1 — ML Pipeline
 
-**Dataset:** Telco Customer Churn Dataset (Kaggle)  
-**Total Records:** 7043 customers  
-**Original Features:** 21  
-**Target Variable:** `Churn` (Yes / No)
+- ✅ Supervised binary classification (churn / no-churn)
+- ✅ Churn probability scoring (0.0 – 1.0) → High / Medium / Low risk tiers
+- ✅ Feature importance via model coefficients
+- ✅ Streamlit dashboard — Executive Summary, Risk Analysis, Model Performance, Data Explorer
 
-The dataset contains:
-
-- Demographic information
-- Service subscription details
-- Internet and contract types
-- Billing and payment methods
-
----
-
-## Machine Learning Pipeline
-Customer CSV
-↓
-Data Cleaning & Preprocessing
-↓
-Feature Encoding & Scaling
-↓
-Logistic Regression Model
-↓
-Churn Prediction + Probability
-↓
-Streamlit Web Application
+**Preprocessing steps:**
+1. Drop `customerID` (non-predictive)
+2. Convert `TotalCharges` to numeric; impute 11 NaN rows with median
+3. One-Hot Encode all categorical features (drop-first)
+4. 80/20 stratified train–test split
+5. StandardScaler normalisation (fit on train only)
 
 ---
 
-##  Data Preprocessing
+## Milestone 2 — AI Retention Advisor
 
-The following preprocessing steps were performed:
+### Features added
 
-- Removed `customerID` column (non-predictive identifier)
-- Converted `TotalCharges` to numeric format
-- Handled missing values using median imputation
-- Converted `Churn` into binary format (0 = No, 1 = Yes)
-- Applied One-Hot Encoding to categorical features
-- Split dataset into 80% training and 20% testing sets
-- Applied StandardScaler to normalize numerical features
+| Feature | Detail |
+|---|---|
+| **AI Retention Advisor tab** | Click any at-risk customer row → LLM generates a structured retention plan |
+| **LLM integration** | Groq API (`llama3-70b-8192`) via `groq` Python client |
+| **SHAP explainability** | Per-customer SHAP attributions feed into the agent prompt |
+| **RAG pipeline** | ChromaDB + `sentence-transformers` retrieves relevant retention playbooks |
+| **Structured output** | Pydantic-validated JSON: risk level, summary, contributing factors, recommended actions, disclaimers |
+| **PDF Export** (Extension 1) | `fpdf2`-generated, professional retention report — one-click download |
+| **Batch Analytics** (Extension 2) | Risk donut chart, segment breakdowns, tenure × charges heatmap, top-20 at-risk table |
 
-These steps ensured clean, structured, and model-ready data.
+### Agent workflow
 
----
+```
+analyze_risk → identify_factors → generate_strategy → END
+```
 
-##  Model Used
-
-### Logistic Regression
-
-Logistic Regression was selected because:
-
-- It is suitable for binary classification
-- It provides probability-based outputs
-- It offers interpretability through feature coefficients
-- It serves as a strong and efficient baseline model
+A deterministic rule-based fallback fires automatically if the Groq API is unavailable.
 
 ---
 
-##  Model Performance
+## Dataset
 
-| Metric        | Score   |
-|--------------|---------|
-| Accuracy     | 81.97%  |
-| Precision    | 68.31%  |
-| Recall       | 59.52%  |
-| F1-Score     | 63.61%  |
+**IBM Telco Customer Churn** — [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 
- **Important:**  
-Recall is particularly important in churn prediction because failing to identify churn customers can lead to revenue loss.
-
----
-
-##  Key Insights (Feature Importance)
-
-Feature importance analysis identified the following major churn drivers:
-
-- **Tenure** – New customers are significantly more likely to churn.
-- **Monthly Charges** – Higher monthly costs increase churn probability.
-- **Total Charges** – High-paying customers show greater churn risk.
-- **Fiber Optic Internet** – Users show relatively higher churn.
-- **Two-Year Contracts** – Long-term contracts reduce churn likelihood.
+| Property | Value |
+|---|---|
+| Records | 7,043 customers |
+| Features | 21 (20 predictors + target) |
+| Churn prevalence | ~26.5% |
+| Target | `Churn` (Yes / No) |
 
 ---
 
-## Business Recommendations
+## Model Performance
 
-Based on model insights:
+| Metric | Score |
+|---|---|
+| Accuracy | **81.97%** |
+| Precision | **68.31%** |
+| Recall | **59.52%** |
+| F1-Score | **63.61%** |
 
-- Focus on onboarding and engagement during the first few months.
-- Offer incentives to convert month-to-month customers to long-term contracts.
-- Review pricing and quality of Fiber Optic services.
-- Provide bundled service discounts for high-paying customers.
+> Recall is the north-star metric — missing a churner is more costly than a false alarm.
+
+---
+
+## System Architecture
+
+```
+Customer CSV Upload
+        │
+        ▼
+Preprocessing (clean / encode / scale)
+        │
+        ▼
+Logistic Regression  ──► Churn Probability + Risk Level
+        │
+        ├──► Streamlit Dashboard (Milestone 1 tabs)
+        │
+        └──► AI Retention Advisor (Milestone 2)
+                    │
+                    ├── SHAP Explainer
+                    ├── LangGraph Agent (Groq LLM)
+                    ├── RAG Retriever (ChromaDB)
+                    └── PDF Export (fpdf2)
+```
+
+---
+
+## Running Locally
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/ANANYA542/AI-ML-Churn_detection.git
+cd AI-ML-Churn_detection
+```
+
+### 2. Create and activate a virtual environment (recommended)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure environment variables
+
+```bash
+cp .env.example .env
+# Open .env and fill in your GROQ_API_KEY
+```
+
+### 5. Run the app
+
+```bash
+streamlit run app.py
+```
+
+The dashboard will open at `http://localhost:8501`.
+
+---
+
+## Environment Setup
+
+Create a `.env` file in the project root (never commit real keys):
+
+```
+# .env.example
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+The app reads this automatically via `python-dotenv`. Without a valid key, the AI Advisor falls back to rule-based suggestions.
+
+---
+
+## Deployment
+
+### Streamlit Community Cloud (recommended)
+
+1. Push this repo to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Set **Repository**: `ANANYA542/AI-ML-Churn_detection`
+4. Set **Main file**: `app.py`
+5. Set **Python version**: 3.10
+6. Under **Secrets**, add:
+   ```toml
+   GROQ_API_KEY = "your_key_here"
+   ```
+7. Click **Deploy**. Paste the resulting URL at the top of this README.
+
+### HuggingFace Spaces (alternative)
+
+Create a new Space → SDK: Streamlit → upload `app.py` + `requirements.txt`. Add `GROQ_API_KEY` in the Space secrets.
+
+---
+
+## Team
+
+| Name | Role |
+|---|---|
+| Ananya | ML model, Streamlit dashboard, AI agent pipeline, PDF export, deployment |
 
 ---
 
 ## Tech Stack
 
-- Python
-- pandas
-- NumPy
-- scikit-learn
-- matplotlib
-- seaborn
-- Streamlit
-
----
-
-## Running the Project Locally
-
-### 1️Clone the Repository
-
-```bash
-git clone https://github.com/YOUR-USERNAME/Customer-Churn-Prediction.git
-cd Customer-Churn-Prediction
+`Python 3.10` · `scikit-learn` · `pandas` · `Streamlit` · `LangGraph` · `Groq API` · `SHAP` · `ChromaDB` · `sentence-transformers` · `fpdf2` · `Altair`
