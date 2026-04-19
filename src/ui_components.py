@@ -217,7 +217,7 @@ def render_model_baseline(metrics):
 # ── AI Advisor results renderer ───────────────────────────────────────────────
 def render_ai_advisor_insights(result, model, shap_top, shap_row, feature_names, df_scaled):
     if result.get("is_fallback"):
-        st.warning("⚠️ AI advisor unavailable — showing rule-based suggestions.")
+        st.warning("AI advisor unavailable — showing rule-based suggestions.")
 
     col_res1, col_res2 = st.columns([1, 2])
 

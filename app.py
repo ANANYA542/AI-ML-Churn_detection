@@ -19,7 +19,7 @@ from src.ui_components import (
 # ── PAGE CONFIG ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ChurnGuard AI | Enterprise Retention Dashboard",
-    page_icon="🛡️",
+    page_icon="",
     layout="wide",
 )
 
@@ -82,7 +82,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── HEADER ─────────────────────────────────────────────────────────────────────
-st.title("🛡️ ChurnGuard AI")
+st.title("ChurnGuard AI")
 st.caption("Enterprise Customer Retention & Churn Analytics — Milestone 2")
 
 # ── LOAD MODELS ────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ with st.sidebar:
     st.markdown("## Data Source")
     uploaded_file = st.file_uploader("Upload Customer CSV", type=["csv"])
     if uploaded_file:
-        st.success("✅ File uploaded")
+        st.success("File uploaded")
     else:
         st.info("Upload a Telco-format CSV to begin analysis.")
 
@@ -190,12 +190,12 @@ if uploaded_file is not None:
 
     # ── TABS ──────────────────────────────────────────────────────────────────
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "📊 Executive Dashboard",
-        "⚠️ Risk Analysis",
-        "🤖 AI Retention Advisor",
-        "📈 Batch Analytics",
-        "🎯 Model Performance",
-        "🗂️ Raw Data Explorer",
+        "Executive Dashboard",
+        "Risk Analysis",
+        "AI Retention Advisor",
+        "Batch Analytics",
+        "Model Performance",
+        "Raw Data Explorer",
     ])
 
     # ━━ Tab 1 — Executive Dashboard ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -230,7 +230,7 @@ if uploaded_file is not None:
 
     # ━━ Tab 3 — AI Retention Advisor ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     with tab3:
-        st.header("🤖 AI Retention Advisor")
+        st.header("AI Retention Advisor")
         st.markdown("Select an at-risk customer to generate a personalised AI retention strategy.")
 
         if "customerID" in df_results.columns:
@@ -273,7 +273,7 @@ if uploaded_file is not None:
                     errors="ignore",
                 ).to_dict()
 
-                if st.button("⚡ Generate Retention Strategy", key="run_agent_btn"):
+                if st.button("Generate Retention Strategy", key="run_agent_btn"):
                     with st.spinner("Agent is analysing customer profile…"):
                         row_idx        = df_results.index[df_results["customerID"] == selected_id][0]
                         customer_scaled = df_scaled[list(df_results.index).index(row_idx)]
@@ -302,7 +302,7 @@ if uploaded_file is not None:
                     from src.pdf_export import generate_pdf
                     pdf_bytes = generate_pdf(result, customer_data)
                     st.download_button(
-                        label="📄 Download PDF Report",
+                        label="Download PDF Report",
                         data=pdf_bytes,
                         file_name=f"Retention_Report_{selected_id}.pdf",
                         mime="application/pdf",
@@ -312,7 +312,7 @@ if uploaded_file is not None:
 
     # ━━ Tab 4 — Batch Analytics ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     with tab4:
-        st.header("📈 Batch Churn Analytics")
+        st.header("Batch Churn Analytics")
         render_batch_analytics(df_results)
 
     # ━━ Tab 5 — Model Performance ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -327,7 +327,7 @@ if uploaded_file is not None:
 
         csv = df_results.to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="⬇️ Download Full Prediction Results (CSV)",
+            label="Download Full Prediction Results (CSV)",
             data=csv,
             file_name="churn_predictions_export.csv",
             mime="text/csv",
